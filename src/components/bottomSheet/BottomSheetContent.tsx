@@ -5,6 +5,7 @@ import Animated, {
   useAnimatedStyle,
   useDerivedValue,
 } from 'react-native-reanimated';
+import { State } from 'react-native-gesture-handler';
 import {
   INITIAL_LAYOUT_VALUE,
   KEYBOARD_BEHAVIOR,
@@ -50,6 +51,8 @@ function BottomSheetContentComponent({
     animatedDetentsState,
     animatedSheetHeight,
     animatedKeyboardState,
+    animatedContentGestureState,
+    animatedHandleGestureState,
     isInTemporaryPosition,
   } = useBottomSheetInternal();
   //#endregion
@@ -199,6 +202,24 @@ function BottomSheetContentComponent({
     const paddingBottom = detached ? 0 : animatedPaddingBottom.get();
     const height = animatedContentHeightMax.get() + paddingBottom;
 
+    /**
+     * while the sheet follows a finger, the padding changes on every touch
+     * event: restarting an animation for each of them never lets it settle
+     * (several events per frame), and on Android the content collapses to
+     * its own height mid drag. Follow the finger directly instead.
+     *
+     * @see https://github.com/gorhom/react-native-bottom-sheet/issues/2702
+     * @see https://github.com/gorhom/react-native-bottom-sheet/issues/2716
+     */
+    const isGestureActive =
+      animatedContentGestureState.get() === State.ACTIVE ||
+      animatedContentGestureState.get() === State.BEGAN ||
+      animatedHandleGestureState.get() === State.ACTIVE ||
+      animatedHandleGestureState.get() === State.BEGAN;
+    if (isGestureActive) {
+      return { paddingBottom, height };
+    }
+
     return {
       paddingBottom: animate({
         point: paddingBottom,
@@ -220,6 +241,8 @@ function BottomSheetContentComponent({
     animatedLayoutState,
     animatedContentHeightMax,
     animatedLayoutState,
+    animatedContentGestureState,
+    animatedHandleGestureState,
   ]);
   const contentContainerStyle = useMemo(
     () => [
